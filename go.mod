@@ -2,7 +2,10 @@ module dns-tunnel
 
 go 1.24.4
 
-require github.com/miekg/dns v1.1.69
+require (
+	github.com/miekg/dns v1.1.69
+	golang.org/x/crypto v0.44.0
+)
 
 require (
 	golang.org/x/mod v0.30.0 // indirect
