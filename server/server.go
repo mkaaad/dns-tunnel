@@ -5,60 +5,82 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"sync"
 
 	"github.com/miekg/dns"
 )
 
-type Message struct {
-	Name string
-	Msg  string
-}
+var msgChan = make(chan string, 1024)
+var caches sync.Map
 
 // 处理DNS查询的回调函数
-func handleDNSRequest(w dns.ResponseWriter, r *dns.Msg, messageChan chan Message, caches map[string]string, baseDomain string) {
+func handleDNSRequest(w dns.ResponseWriter, r *dns.Msg, baseDomain string) {
 	go func() {
 		// 获取请求的查询内容
-		query := r.Question[0].Name // data.finishflag.clientname.baseDomain.
-		if !strings.Contains(query, baseDomain) {
+		query := r.Question[0].Name // data.finishflag.messageID.baseDomain.
+		index := strings.LastIndex(query, baseDomain)
+		if index <= 0 {
 			replyDNSTXT(w, r, query, "invalid format")
 			return
 		}
-		str := strings.ReplaceAll(query, "."+baseDomain+".", "") //data.finishflag.clientname
-		index := strings.LastIndex(str, ".")
-		if index == -1 {
-			replyDNSTXT(w, r, query, "invalid format")
-			return
-		}
-
-		clientName := str[index+1:]
-		str = str[:index] //data.finishflag
+		str := query[:index-1] //data.finishflag.messageID
 		index = strings.LastIndex(str, ".")
 		if index == -1 {
 			replyDNSTXT(w, r, query, "invalid format")
 			return
 		}
 
+		messageID := str[index+1:]
+		str = str[:index] //data.finishflag
+		index = strings.LastIndex(str, ".")
+		if index == -1 {
+			if str == "2" {
+				if _, ok := caches.LoadOrStore(messageID, ""); ok {
+					replyDNSTXT(w, r, query, "exists")
+					return
+				} else {
+					replyDNSTXT(w, r, query, "ok")
+					return
+				}
+			} else {
+				replyDNSTXT(w, r, query, "invalid format")
+				return
+			}
+		}
+
 		data := strings.ReplaceAll(str[:index], ".", "")
-		caches[clientName] = caches[clientName] + data
-		if str[index+1:] == "1" {
-			base32Enc := caches[clientName]
+		cache, ok := caches.Load(messageID)
+		if !ok {
+			replyDNSTXT(w, r, query, "ok")
+			return
+		}
+		cacheStr := cache.(string)
+		cacheStr = cacheStr + data
+		if str[index+1] == '1' {
+			base32Enc := cacheStr
 
 			padCount := (8 - len(base32Enc)%8) % 8
 			padString := strings.Repeat("=", padCount)
 			base32Enc = base32Enc + padString
 
 			msg, err := base32.StdEncoding.DecodeString(base32Enc)
-			caches[clientName] = ""
+			caches.Delete(messageID)
 			if err != nil {
 				replyDNSTXT(w, r, query, "invalid format")
 				return
 			}
-			messageChan <- Message{
-				Name: clientName,
-				Msg:  string(msg),
-			}
+			msgChan <- string(msg)
+
+			replyDNSTXT(w, r, query, "ok")
+			return
+		} else if str[index+1] == '0' {
+			caches.Store(messageID, cacheStr)
+			replyDNSTXT(w, r, query, "ok")
+			return
+		} else {
+			replyDNSTXT(w, r, query, "invalid format")
+			return
 		}
-		replyDNSTXT(w, r, query, "ok")
 	}()
 }
 func replyDNSTXT(w dns.ResponseWriter, r *dns.Msg, query string, msg string) {
@@ -76,17 +98,15 @@ func replyDNSTXT(w dns.ResponseWriter, r *dns.Msg, query string, msg string) {
 	m.Answer = append(m.Answer, txtRecord)
 	w.WriteMsg(m)
 }
-func ListenAndServer(baseDomain string) chan Message {
+func ListenAndServer(baseDomain string) chan string {
 	// 创建DNS服务器
 	server := &dns.Server{
 		Addr: ":53", // 监听 53 端口
 		Net:  "udp", // 使用 UDP 协议
 	}
-	msgChan := make(chan Message, 1024)
-	caches := make(map[string]string)
 	// 注册 DNS 查询处理器
 	dns.HandleFunc(".", func(w dns.ResponseWriter, m *dns.Msg) {
-		handleDNSRequest(w, m, msgChan, caches, baseDomain)
+		handleDNSRequest(w, m, baseDomain)
 	})
 
 	// 启动服务器并开始监听
