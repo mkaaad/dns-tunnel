@@ -60,34 +60,24 @@ func removeTrailingPad(str string) string {
 	}
 	return str[:n]
 }
-func split(str string, length int) string {
-	if length <= 0 || len(str) == 0 {
-		return str
+func split(s string, length int) []string {
+	var result []string
+	// 检查边界条件
+	if length <= 0 {
+		return nil // 如果长度小于等于0，返回空切片
 	}
 
-	// 计算最终结果所需的内存空间
-	partsCount := (len(str) + length - 1) / length
-	// 预先分配内存
-	parts := make([]byte, 0, len(str)+partsCount)
-
-	count := 0
-	for i := 0; i < len(str); i++ {
-		parts = append(parts, str[i])
-		count++
-
-		if count == length {
-			parts = append(parts, '.')
-			count = 0
+	for i := 0; i < len(s); i += length {
+		end := i + length
+		if end > len(s) {
+			end = len(s) // 确保最后一部分不超出字符串长度
 		}
+		result = append(result, s[i:end])
 	}
 
-	// 去掉最后一个多余的分隔符
-	if len(parts) > 0 && parts[len(parts)-1] == '.' {
-		parts = parts[:len(parts)-1]
-	}
-
-	return string(parts)
+	return result
 }
+
 func encrypt(key, plaintext []byte) ([]byte, error) {
 	aead, err := chacha20poly1305.New(key)
 	if err != nil {

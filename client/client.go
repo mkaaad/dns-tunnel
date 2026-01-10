@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"strings"
 )
 
 type ClientConfig struct {
@@ -91,7 +92,7 @@ func (c *Client) Do(msg string) error {
 	}
 	base32Enc := base32.StdEncoding.EncodeToString(data)
 	base32Enc = removeTrailingPad(base32Enc)
-	for {
+	for i := 0; i < 5; i++ {
 		messageID, err = randString(c.messageIDLength)
 		if err != nil {
 			return err
@@ -113,32 +114,17 @@ func (c *Client) Do(msg string) error {
 		}
 		return errors.New("server response wrong message: " + r[0])
 	}
-	var i, j int
-	for j, _ = range base32Enc {
-		// base32Enc[i,j+1].finishFlag.clientName.baseDomain
-		// availableLength=len(base32Enc[i:j+1])+len(count)+1
-		if j+1-i == c.maxTotalChars {
-			data := split(base32Enc[i:j+1], c.maxLabelLength)
-			req := fmt.Sprintf(c.dnsReqModel, data, 0, messageID, c.baseDomain)
-			i = j + 1
-			r, err := net.LookupTXT(string(req))
-			if err != nil {
-				return err
-			}
-			if len(r) == 0 {
-				return errors.New("failed to get response")
-			}
-			if r[0] != "ok" {
-				return errors.New("server response wrong message: " + r[0])
-			}
+	datas := split(base32Enc, c.maxTotalChars)
+	for i, data := range datas {
+		data = strings.Join(split(data, c.maxLabelLength), ".")
+		var finishFlag int
+		if i == len(datas)-1 {
+			finishFlag = 1
+		} else {
+			finishFlag = 0
 		}
-	}
-	if i != len(base32Enc) {
-		data := split(base32Enc[i:j+1], c.maxLabelLength)
-		req := fmt.Sprintf(c.dnsReqModel, data, 1, messageID, c.baseDomain)
-
-		r, err := net.LookupTXT(req)
-
+		req := fmt.Sprintf(c.dnsReqModel, data, finishFlag, messageID, c.baseDomain)
+		r, err := net.LookupTXT(string(req))
 		if err != nil {
 			return err
 		}
@@ -149,5 +135,6 @@ func (c *Client) Do(msg string) error {
 			return errors.New("server response wrong message: " + r[0])
 		}
 	}
+
 	return nil
 }
