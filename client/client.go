@@ -4,6 +4,7 @@ import (
 	"encoding/base32"
 	"errors"
 	"fmt"
+	"log"
 	"net"
 	"strings"
 )
@@ -52,7 +53,7 @@ func NewClientWithConfig(config *ClientConfig) *Client {
 	}
 	c.baseDomain = config.BaseDomain
 	c.key = config.Key
-	availableLength := 253 - len(config.BaseDomain) - int(config.MessageIDLength) - 4
+	availableLength := c.maxLength - len(config.BaseDomain) - int(c.messageIDLength) - 4
 	if availableLength <= 0 {
 		panic("fixed string is too long")
 	}
@@ -124,7 +125,8 @@ func (c *Client) Do(msg string) error {
 			finishFlag = 0
 		}
 		req := fmt.Sprintf(c.dnsReqModel, data, finishFlag, messageID, c.baseDomain)
-		r, err := net.LookupTXT(string(req))
+		log.Println(req)
+		r, err := net.LookupTXT(req)
 		if err != nil {
 			return err
 		}
