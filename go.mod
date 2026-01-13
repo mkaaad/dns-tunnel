@@ -1,4 +1,4 @@
-module dns-tunnel
+module github.com/mkaaad/dns-tunnel
 
 go 1.24.4
 

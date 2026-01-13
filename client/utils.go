@@ -61,16 +61,19 @@ func removeTrailingPad(str string) string {
 	return str[:n]
 }
 func split(s string, length int) []string {
-	var result []string
 	// 检查边界条件
 	if length <= 0 {
 		return nil // 如果长度小于等于0，返回空切片
 	}
-
-	for i := 0; i < len(s); i += length {
+	strLen := len(s)
+	// 提前计算需要分割的总段数（向上取整）
+	total := (strLen + length - 1) / length
+	// 预分配切片容量，避免动态扩容
+	result := make([]string, 0, total)
+	for i := 0; i < strLen; i += length {
 		end := i + length
-		if end > len(s) {
-			end = len(s) // 确保最后一部分不超出字符串长度
+		if end > strLen {
+			end = strLen // 确保最后一部分不超出字符串长度
 		}
 		result = append(result, s[i:end])
 	}

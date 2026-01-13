@@ -4,7 +4,6 @@ import (
 	"encoding/base32"
 	"errors"
 	"fmt"
-	"log"
 	"net"
 	"strings"
 )
@@ -64,14 +63,14 @@ func NewClientWithConfig(config *ClientConfig) *Client {
 }
 func NewClient(baseDomain string, key []byte) *Client {
 	if baseDomain == "" {
-		panic("baseDomain or clientName can not be empty string")
+		panic("baseDomain can not be empty string")
 	}
 	if len(key) != 32 {
 		panic("the length of key must be 32")
 	}
-	availableLength := 253 - len(baseDomain) - 4 - 4
+	availableLength := 245 - len(baseDomain) - 4 - 4
 	return &Client{
-		maxLength:       253,
+		maxLength:       245,
 		maxLabelLength:  63,
 		baseDomain:      baseDomain,
 		key:             key,
@@ -125,7 +124,6 @@ func (c *Client) Do(msg string) error {
 			finishFlag = 0
 		}
 		req := fmt.Sprintf(c.dnsReqModel, data, finishFlag, messageID, c.baseDomain)
-		log.Println(req)
 		r, err := net.LookupTXT(req)
 		if err != nil {
 			return err

@@ -52,11 +52,13 @@ func handleDNSRequest(w dns.ResponseWriter, r *dns.Msg, baseDomain string, key [
 		data := strings.ReplaceAll(str[:index], ".", "")
 		cache, ok := caches.Load(messageID)
 		if !ok {
-			replyDNSTXT(w, r, query, "ok")
+			replyDNSTXT(w, r, query, "invalid format")
 			return
 		}
-		cacheStr := cache.(string)
-		cacheStr = cacheStr + data
+		var builder strings.Builder
+		builder.WriteString(cache.(string))
+		builder.WriteString(data)
+		cacheStr := builder.String()
 		if str[index+1] == '1' {
 			base32Enc := cacheStr
 
